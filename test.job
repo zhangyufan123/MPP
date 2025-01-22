@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# This script runs the automaton program multiple times with varying numbers of processes
+#SBATCH --account=m24oc-s2552035
+#SBATCH --job-name=automaton
+#SBATCH --time=00:10:00
+#SBATCH --nodes=2  # Adjust the number of nodes as needed
+#SBATCH --qos=short
+
+#SBATCH --output=automaton-%j.out
+#SBATCH --exclusive
+#SBATCH --tasks-per-node=25
+#SBATCH --cpus-per-task=1
+#SBATCH --partition=standard
+
+module --silent load intel-20.4/compilers
+module --silent load mpt
+
+mpirun -n 50 ./automaton 8766

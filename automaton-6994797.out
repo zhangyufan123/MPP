@@ -1,0 +1,28 @@
+automaton: running on 50 process(es)
+automaton: L = 960, rho = 0.520000, seed = 8766, maxstep = 9600
+automaton: rho = 0.520000, living cells = 479099, actual density = 0.519856
+automaton: number of living cells on step 500 is 512917
+automaton: number of living cells on step 1000 is 528427
+automaton: number of living cells on step 1500 is 536738
+automaton: number of living cells on step 2000 is 543842
+automaton: number of living cells on step 2500 is 548777
+automaton: number of living cells on step 3000 is 555955
+automaton: number of living cells on step 3500 is 564614
+automaton: number of living cells on step 4000 is 571184
+automaton: number of living cells on step 4500 is 574655
+automaton: number of living cells on step 5000 is 579820
+automaton: number of living cells on step 5500 is 584383
+automaton: number of living cells on step 6000 is 586948
+automaton: number of living cells on step 6500 is 593697
+automaton: number of living cells on step 7000 is 598332
+automaton: number of living cells on step 7500 is 602262
+automaton: number of living cells on step 8000 is 606623
+automaton: number of living cells on step 8500 is 611241
+automaton: number of living cells on step 9000 is 615787
+automaton: number of living cells on step 9500 is 620608
+L=960, rho=0.520000, T=50, ms=9600, seed=8766
+Time cost each step: 0.100585 ms, total step: 9600
+autowritedynamic: opening file <cell.pbm>
+autowritedynamic: writing data ...
+autowritedynamic: ... done
+autowritedynamic: file closed
