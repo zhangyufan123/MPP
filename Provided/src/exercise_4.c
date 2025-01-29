@@ -23,68 +23,72 @@
 
 void EPCC_create_MPI_datatypes(void)
 {
-    // ========== 1) 构造 "AoS" 类型 (Array of Structs) ==========
+    // First, we describe our structure, similarly to exercise 3.
+    struct AoS s1;
+    int array_of_block_lengths[AOS_MEMBER_COUNT] = {1, 1, 1};
+    MPI_Aint array_of_displacements[AOS_MEMBER_COUNT];
+    MPI_Aint start_address;
+    MPI_Get_address(&s1, &start_address);
+    MPI_Aint offset_address;
+    MPI_Get_address(&s1.d1, &offset_address);
+    array_of_displacements[0] = MPI_Aint_diff(offset_address, start_address);
+    MPI_Get_address(&s1.i, &offset_address);
+    array_of_displacements[1] = MPI_Aint_diff(offset_address, start_address);
+    MPI_Get_address(&s1.d2, &offset_address);
+    array_of_displacements[2] = MPI_Aint_diff(offset_address, start_address);
+    MPI_Datatype array_of_types[AOS_MEMBER_COUNT] = {MPI_DOUBLE, MPI_INT, MPI_DOUBLE};
+    MPI_Type_create_struct(AOS_MEMBER_COUNT, array_of_block_lengths, array_of_displacements, array_of_types, &EPCC_MPI_AOS);
+    MPI_Type_commit(&EPCC_MPI_AOS);
+
+    // When sending a structure, the data put in the buffer sent is:
+    // d1, i, d2
+
+    // When sending multiple such structures, the data in the buffer sent is:
+    // d1, i, d2, d1, i, d2, d1, i, d2, etc...
+
+    // For the structure of array, the idea is to calculate the displacement of
+    // each array in the structure s2. That will give us the starting point for
+    // the first round of d1, i, and d2.
+    // Then, for each additional round or d1, i and d2, since we know where we
+    // put the each member received in the first round, we just need to offset
+    // each by the size of the type we store. The offset of d1 and d2 will move
+    // by a double, and that of i by the size of an int.
+    // We repeat until there are no more rounds of d1, i, d2 to read.
+    // Trick, to read one full round of d1, i, and d2 in one iteration, we just
+    // increment the iteration count by 3 every time, so that in each loop 
+    // iteration, we actually process the equivalent of three iterations at once.
+    struct SoA s2;
+    const int SOA_EPCC_ARRAY_SIZE = AOS_MEMBER_COUNT * EPCC_ARRAY_SIZE;
+    int soa_array_of_block_lengths[SOA_EPCC_ARRAY_SIZE];
+    for(int i = 0; i < SOA_EPCC_ARRAY_SIZE; i++)
     {
-        // 用一个“样例对象”来查询字段真实偏移
-        struct AoS dummy_aos;
-        MPI_Aint base, addr_d1, addr_i, addr_d2;
-
-        MPI_Get_address(&dummy_aos,       &base);
-        MPI_Get_address(&dummy_aos.d1,    &addr_d1);
-        MPI_Get_address(&dummy_aos.i,     &addr_i);
-        MPI_Get_address(&dummy_aos.d2,    &addr_d2);
-
-        // 相对于 struct 起始的位移
-        MPI_Aint dispA[3];
-        dispA[0] = addr_d1 - base;  // 通常为0
-        dispA[1] = addr_i  - base;  // 可能为8(或其它), 由编译器决定
-        dispA[2] = addr_d2 - base;  // 可能为16(或其它)
-        printf("dispA[0] = %ld, dispA[1] = %ld, dispA[2] = %ld\n", dispA[0], dispA[1], dispA[2]);
-        int blocklengthsA[3] = {1, 1, 1};
-        MPI_Datatype typesA[3] = {MPI_DOUBLE, MPI_INT, MPI_DOUBLE};
-
-        MPI_Type_create_struct(
-            3, blocklengthsA, dispA, typesA, &EPCC_MPI_AOS
-        );
-        MPI_Type_commit(&EPCC_MPI_AOS);
+        soa_array_of_block_lengths[i] = 1;
+    }
+    MPI_Aint soa_start_address;
+    MPI_Get_address(&s2, &soa_start_address);
+    MPI_Aint soa_first_member_start_address;
+    MPI_Get_address(&s2.d1[0], &soa_first_member_start_address);
+    MPI_Aint soa_second_member_start_address;
+    MPI_Get_address(&s2.i[0], &soa_second_member_start_address);
+    MPI_Aint soa_third_member_start_address;
+    MPI_Get_address(&s2.d2[0], &soa_third_member_start_address);
+    MPI_Aint soa_array_of_displacements[SOA_EPCC_ARRAY_SIZE];
+    for(int i = 0; i < SOA_EPCC_ARRAY_SIZE; i+=3)
+    {
+        soa_array_of_displacements[i] = MPI_Aint_diff(soa_first_member_start_address, soa_start_address) + sizeof(double) * i / 3;
+        soa_array_of_displacements[i+1] = MPI_Aint_diff(soa_second_member_start_address, soa_start_address) + sizeof(int) * i / 3;
+        soa_array_of_displacements[i+2] = MPI_Aint_diff(soa_third_member_start_address, soa_start_address) + sizeof(double) * i / 3;
+    }
+    MPI_Datatype soa_array_of_types[SOA_EPCC_ARRAY_SIZE];
+    for(int i = 0; i < SOA_EPCC_ARRAY_SIZE; i+=3)
+    {
+        soa_array_of_types[i] = MPI_DOUBLE;
+        soa_array_of_types[i+1] = MPI_INT;
+        soa_array_of_types[i+2] = MPI_DOUBLE;
     }
 
-    // ========== 2) 构造 "SoA" 类型 (Struct of Arrays) ==========
-    {
-        // 同样用一个“样例对象”查询真实偏移
-        struct SoA dummy_soa;
-        MPI_Aint base, addr_d1, addr_i, addr_d2;
-
-        MPI_Get_address(&dummy_soa,          &base);
-        MPI_Get_address(&dummy_soa.d1,       &addr_d1);
-        MPI_Get_address(&dummy_soa.i,        &addr_i);
-        MPI_Get_address(&dummy_soa.d2,       &addr_d2);
-
-        // 计算相对于 struct SoA 起始的位移
-        MPI_Aint dispS[3];
-        dispS[0] = addr_d1 - base + 8;  // 数组 d1[] 的起点
-        dispS[1] = addr_i  - base;  // 数组 i[]  的起点
-        dispS[2] = addr_d2 - base;  // 数组 d2[] 的起点
-        printf("dispS[0] = %ld, dispS[1] = %ld, dispS[2] = %ld\n", dispS[0], dispS[1], dispS[2]);
-        // 每个数组里有 EPCC_ARRAY_SIZE 个元素
-        int blocklengthsS[3] = {
-            EPCC_ARRAY_SIZE,  // d1[] 有多少 double
-            EPCC_ARRAY_SIZE,  // i[]  有多少 int
-            EPCC_ARRAY_SIZE   // d2[] 有多少 double
-        };
-
-        // 对应数组中元素的类型
-        MPI_Datatype typesS[3] = {
-            MPI_DOUBLE, // d1[] 是 double
-            MPI_INT,    // i[]  是 int
-            MPI_DOUBLE  // d2[] 是 double
-        };
-
-        MPI_Type_create_struct(
-            3, blocklengthsS, dispS, typesS, &EPCC_MPI_SOA
-        );
-        MPI_Type_commit(&EPCC_MPI_SOA);
-    }
+    MPI_Type_create_struct(SOA_EPCC_ARRAY_SIZE, soa_array_of_block_lengths, soa_array_of_displacements, soa_array_of_types, &EPCC_MPI_SOA);
+    MPI_Type_commit(&EPCC_MPI_SOA);
 }
 /*
 void EPCC_create_MPI_datatypes(void)

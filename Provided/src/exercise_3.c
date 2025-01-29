@@ -22,8 +22,39 @@
 
 void EPCC_create_MPI_datatype(void)
 {
-    EPCC_printf("You need to implement this function.\n");
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    // Use a dummy struct instance, so that we can calculate the displacement
+    // of its members.
+    struct EPCC_struct s;
+
+    // Each block will contain one element: the corresponding member.
+    int array_of_block_lengths[EPCC_MEMBER_COUNT] = {1, 1, 1};
+
+    // [Arbitrary addresses taken for illustration]
+    // If our dummy struct s is located at address 0x50, its members i may be
+    // located at address 0x50, or 0x54, or 0x58 etc... So we fetch the address
+    // of both, then calculate the difference and know for the sure the 
+    // displacement. We repeat for the other two structure members.
+    MPI_Aint array_of_displacements[EPCC_MEMBER_COUNT];
+    MPI_Aint start_address;
+    MPI_Get_address(&s, &start_address);
+    MPI_Aint offset_address;
+    MPI_Get_address(&s.i, &offset_address);
+    array_of_displacements[0] = MPI_Aint_diff(offset_address, start_address);
+    MPI_Get_address(&s.c, &offset_address);
+    array_of_displacements[1] = MPI_Aint_diff(offset_address, start_address);
+    MPI_Get_address(&s.d, &offset_address);
+    array_of_displacements[2] = MPI_Aint_diff(offset_address, start_address);
+
+    // The first block contains "i", so an int, the second block contains "c" so
+    // a char, and the third block contains "d" so a double.
+    MPI_Datatype array_of_types[EPCC_MEMBER_COUNT] = {MPI_INT, MPI_CHAR, MPI_DOUBLE};
+
+    // Block lengths, displacements and types calculated, we can now construct
+    // the MPI derived datatype.
+    MPI_Type_create_struct(EPCC_MEMBER_COUNT, array_of_block_lengths, array_of_displacements, array_of_types, &EPCC_MPI_STRUCT);
+
+    // We commit it so that we can use it in MPI routines.
+    MPI_Type_commit(&EPCC_MPI_STRUCT);
 }
 
 int main(int argc, char* argv[])

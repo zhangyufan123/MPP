@@ -39,23 +39,16 @@ void EPCC_create_MPI_datatype(int row_count, int column_count)
 
 void EPCC_create_MPI_datatype(int row_count, int column_count)
 {
-    // 1) 先创建"列向量"布局
-    MPI_Datatype temp_type;
-    MPI_Type_vector(row_count, 1, column_count, MPI_INT, &temp_type);
-
-    // 2) 再用 MPI_Type_create_resized 调整其 Extent
-    MPI_Aint lb, extent;
-    lb = 0;                  // Lower bound = 0
-    extent = sizeof(int);    // 把每次类型重复的跨距设为sizeof(int)，
-                             // 这样在 Scatter 时，
-                             // rank=1就会从sendbuf+1*sizeof(int)的位置取数据
-    MPI_Datatype resized_type;
-    MPI_Type_create_resized(temp_type, lb, extent, &resized_type);
-
-    MPI_Type_commit(&resized_type);
-    MPI_Type_free(&temp_type);
-
-    EPCC_MPI_COLUMN = resized_type;
+    // Use a temporary datatype for now, since we will have to resize it.
+    MPI_Datatype temp_datatype;
+    // Create a classic vector representing one column.
+    MPI_Type_vector(row_count, 1, column_count, MPI_INT, &temp_datatype);
+    /* Resize it such that the start of the next column is not after the end
+     * of the current column, but the end of the first cell in the current
+     * column. */
+    MPI_Type_create_resized(temp_datatype, 0, sizeof(int), &EPCC_MPI_COLUMN);
+    // Commit the new datatype such that it can be used in MPI routines.
+    MPI_Type_commit(&EPCC_MPI_COLUMN);
 }
 
 int main(int argc, char* argv[])
